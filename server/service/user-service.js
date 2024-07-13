@@ -5,7 +5,6 @@ import mailService from "./mail-service.js"
 import tokenService from "./token-service.js"
 import UserDto from "../dtos/user-dto.js"
 import ApiError from "../exceptions/api-error.js"
-import { where } from "sequelize"
 
 class UserService {
     async registration(email, password) {
@@ -15,7 +14,7 @@ class UserService {
         }
         const hashPassword = await bcrypt.hash(password, 3)
         const activateLink =  uuidv4()
-        const user = await User.create({email, password: hashPassword, activateLink})
+        const user = await User.create({email, password: hashPassword, activationLink: activateLink})
         await mailService.sendActivationMail(email, `${process.env.API_URL}/api/activate/${activateLink}`);
         
         const userDto = new UserDto(user)
@@ -29,7 +28,7 @@ class UserService {
     }
 
     async activate(activationLink) {
-        const user = await User.findOne({activationLink})
+        const user = await User.findOne({where: {activationLink}})
         if(!user) {
             throw ApiError.BadRequest('Некорректная ссылка авторизации')
         }
@@ -63,7 +62,8 @@ class UserService {
         if(!refreshToken) {
             throw ApiError.UnauthorizedError();
         }
-        const userData = tokenService.validateAccessToken(refreshToken);
+        const userData = tokenService.validateRefreshToken(refreshToken);
+        console.log(userData);
         const tokenFromDb = await tokenService.findToken(refreshToken);
         if(!userData || !tokenFromDb) {
             throw ApiError.UnauthorizedError();
@@ -77,6 +77,11 @@ class UserService {
             ...tokens, 
             user: userDto
         }
+    }
+    
+    async getAllUsers() {
+        const users = await User.findAll();
+        return users;
     }
 }
 
