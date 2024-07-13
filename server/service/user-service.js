@@ -5,6 +5,7 @@ import mailService from "./mail-service.js"
 import tokenService from "./token-service.js"
 import UserDto from "../dtos/user-dto.js"
 import ApiError from "../exceptions/api-error.js"
+import { where } from "sequelize"
 
 class UserService {
     async registration(email, password) {
@@ -56,6 +57,26 @@ class UserService {
     async logout(refreshToken) {
         const token = await tokenService.removeToken(refreshToken);
         return token
+    }
+
+    async refresh(refreshToken) {
+        if(!refreshToken) {
+            throw ApiError.UnauthorizedError();
+        }
+        const userData = tokenService.validateAccessToken(refreshToken);
+        const tokenFromDb = await tokenService.findToken(refreshToken);
+        if(!userData || !tokenFromDb) {
+            throw ApiError.UnauthorizedError();
+        }
+        const user = await User.findByPk(userData.id)
+        const userDto = new UserDto(user);
+        const tokens = tokenService.generateTokens({...userDto})
+        
+        await tokenService.saveToken(userDto.id, tokens.refreshToken)
+        return {
+            ...tokens, 
+            user: userDto
+        }
     }
 }
 
